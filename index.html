@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="赵清华课表">
+<title>赵清华的课表</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --border:#e0e0e0;
+  --bg:#f7f8fa;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --col-w:110px;
+  --left-w:102px; /* seg+period+time */
+  --row-h:18px;
+  --blue:#1677ff;
+  --discrete-bg:#edeaff;
+  --discrete-bd:#7c6fff;
+  --discrete-txt:#3c1fa8;
+  --hci-bg:#fff0f6;
+  --hci-bd:#ff85c2;
+  --hci-txt:#a8005e;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,"PingFang SC",sans-serif;font-size:13px;color:#222;}
+
+/* ── PAGE SHELL ── */
+.page{display:flex;flex-direction:column;height:100%;height:calc(100% - var(--safe-top));padding-top:var(--safe-top);}
+
+/* ── TOP HEADER ── */
+.header{background:#fff;border-bottom:1.5px solid var(--border);padding:10px 12px 0;flex-shrink:0;}
+.header-row1{display:flex;align-items:flex-start;position:relative;min-height:34px;}
+.h-left{font-size:10.5px;color:#888;line-height:1.65;}
+.h-title{position:absolute;left:50%;transform:translateX(-50%);font-size:19px;font-weight:600;letter-spacing:1px;white-space:nowrap;color:#111;}
+.h-right{margin-left:auto;font-size:10.5px;color:#888;text-align:right;line-height:1.65;}
+
+/* ── WEEK NAV ── */
+.week-nav{display:flex;align-items:center;padding:7px 0 5px;gap:5px;}
+.wn-label{font-size:12px;font-weight:700;color:var(--blue);min-width:44px;}
+.wn-btn{background:none;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;font-size:16px;color:#666;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.wn-btn:active{background:#e6f0ff;border-color:var(--blue);}
+.wn-today{background:none;border:1px solid var(--blue);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--blue);cursor:pointer;}
+.wn-today:active{background:#e6f0ff;}
+.day-dots{display:flex;flex:1;justify-content:space-around;}
+.dd{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;}
+.dd-wd{font-size:9.5px;color:#aaa;}
+.dd-num{width:22px;height:22px;border-radius:50%;font-size:11px;display:flex;align-items:center;justify-content:center;color:#666;}
+.dd.is-today .dd-wd{color:var(--blue);}
+.dd.is-today .dd-num{background:var(--blue);color:#fff;font-weight:700;}
+
+/* ── GRID WRAPPER ── */
+.grid-outer{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;position:relative;}
+
+/* ── TABLE ── */
+table{border-collapse:collapse;table-layout:fixed;width:calc(var(--left-w) + var(--col-w)*5);}
+
+/* sticky top-left corner */
+.th-corner{position:sticky;top:0;left:0;z-index:20;background:#fafafa;}
+/* sticky header row */
+thead th{position:sticky;top:0;z-index:10;background:#fff;border-right:1px solid var(--border);border-bottom:2px solid #ccc;}
+/* sticky left cols */
+tbody .td-seg,tbody .td-per,tbody .td-time{position:sticky;left:0;z-index:5;background:#fafafa;border-right:1px solid var(--border);border-bottom:1px solid var(--border);}
+
+/* column widths */
+.col-seg {width:22px;}
+.col-per {width:26px;}
+.col-time{width:54px;}
+.col-day {width:var(--col-w);}
+
+/* header cells */
+thead th.th-day{font-size:12px;font-weight:500;text-align:center;padding:7px 2px;}
+thead th.th-today{background:#e6f4ff;}
+.th-day-inner{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.th-day-name{font-size:12px;font-weight:600;}
+.th-day-date{font-size:10px;color:#aaa;font-weight:400;}
+.th-today .th-day-name,.th-today .th-day-date{color:var(--blue);}
+
+/* left cells */
+.td-seg{width:22px;text-align:center;font-size:10px;color:#999;writing-mode:vertical-rl;letter-spacing:2px;padding:2px 0;border-right:1px solid var(--border);}
+.td-per{width:26px;text-align:center;font-style:italic;font-weight:700;font-size:12px;color:#aaa;padding:0;border-right:1px solid var(--border);}
+.td-time{width:54px;text-align:center;font-size:8px;color:#bbb;line-height:1.4;padding:1px 2px;white-space:nowrap;}
+
+/* data cells */
+td.td-class{border-right:1px solid var(--border);border-bottom:1px solid var(--border);vertical-align:top;padding:2px;height:var(--row-h);position:relative;}
+td.td-today{background:rgba(22,119,255,0.05);}
+
+/* ── COURSE CARD ── */
+.card{border-radius:4px;padding:2px 4px;height:100%;display:flex;flex-direction:column;gap:1px;border-left:3px solid;overflow:hidden;}
+.card.discrete{background:var(--discrete-bg);border-left-color:var(--discrete-bd);}
+.card.hci{background:var(--hci-bg);border-left-color:var(--hci-bd);}
+.card-name{font-size:9.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.discrete .card-name{color:var(--discrete-txt);}
+.hci .card-name{color:var(--hci-txt);}
+.card-meta{font-size:8px;color:#999;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card-tag{font-size:8px;padding:0px 3px;border-radius:2px;display:inline-block;}
+.discrete .card-tag{background:rgba(124,111,255,0.15);color:var(--discrete-txt);}
+.hci .card-tag{background:rgba(255,107,157,0.15);color:var(--hci-txt);}
+
+/* highlight current class */
+.now-highlight{box-shadow:0 0 0 2px var(--blue) inset;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.now-pulse{animation:pulse 1.2s ease-in-out 4;}
+
+/* red now-line */
+.now-line{position:absolute;left:0;right:0;height:2px;background:#f5222d;z-index:2;pointer-events:none;}
+.now-line::before{content:'';position:absolute;left:-3px;top:-4px;width:10px;height:10px;background:#f5222d;border-radius:50%;}
+
+/* ── iOS TIP ── */
+.ios-tip{position:fixed;bottom:calc(var(--safe-bottom) + 10px);left:10px;right:10px;background:rgba(255,255,255,.97);border:1px solid var(--border);border-radius:14px;padding:11px 13px;display:flex;align-items:center;gap:9px;box-shadow:0 4px 20px rgba(0,0,0,.13);z-index:99;font-size:11.5px;transition:opacity .3s,transform .3s;}
+.ios-tip.hidden{opacity:0;transform:translateY(20px);pointer-events:none;}
+.ios-tip-icon{font-size:22px;flex-shrink:0;}
+.ios-tip-text{flex:1;line-height:1.5;color:#333;}
+.ios-tip-text strong{color:var(--blue);}
+.ios-tip-close{background:none;border:none;font-size:18px;color:#aaa;cursor:pointer;padding:0 2px;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-row1">
+      <div class="h-left">
+        2025–2026学年第2学期<br>
+        ★-理论☆-实验○-课外■-实践◆-上机
+      </div>
+      <div class="h-title">赵清华的课表</div>
+      <div class="h-right">人工智能与大数据学院<br>教工号：11059240016</div>
+    </div>
+    <div class="week-nav">
+      <span class="wn-label" id="wLabel">第1周</span>
+      <button class="wn-btn" onclick="shiftWeek(-1)">‹</button>
+      <button class="wn-btn" onclick="shiftWeek(1)">›</button>
+      <button class="wn-today" onclick="goToday()">今天</button>
+      <div class="day-dots" id="dayDots"></div>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid-outer" id="gridOuter">
+    <table id="tbl">
+      <colgroup>
+        <col class="col-seg"><col class="col-per"><col class="col-time">
+        <col class="col-day"><col class="col-day"><col class="col-day">
+        <col class="col-day"><col class="col-day">
+      </colgroup>
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- iOS Tip -->
+<div class="ios-tip" id="iosTip">
+  <div class="ios-tip-icon">📱</div>
+  <div class="ios-tip-text"><strong>添加到主屏幕</strong><br>Safari → 底部分享 → 添加到主屏幕，全屏使用</div>
+  <button class="ios-tip-close" onclick="dismissTip()">×</button>
+</div>
+
+<script>
+// ─── DATA ─────────────────────────────────────────────────────
+const SEM_START = new Date(2026,2,2); // 2026-03-02
+const WD = ['一','二','三','四','五','六','日'];
+const PERIODS = [
+  {p:1,s:'08:20',e:'09:05'},{p:2,s:'09:15',e:'10:00'},
+  {p:3,s:'10:20',e:'11:05'},{p:4,s:'11:15',e:'12:00'},
+  {p:5,s:'14:00',e:'14:45'},{p:6,s:'14:55',e:'15:40'},
+  {p:7,s:'16:00',e:'16:45'},{p:8,s:'16:55',e:'17:40'},
+];
+const SEGS = [{l:'上午',ps:[1,2,3,4]},{l:'下午',ps:[5,6,7,8]}];
+function rng(a,b){const r=[];for(let i=a;i<=b;i++)r.push(i);return r;}
+function hm(s){const[h,m]=s.split(':').map(Number);return h*60+m;}
+
+const SCH=[
+  // 离散数学
+  {day:2,p:[1,2],weeks:rng(10,15),name:'离散数学',key:'discrete',room:'36-608',type:'☆理论',group:'25数大(1)'},
+  {day:3,p:[1,2],weeks:rng(10,15),name:'离散数学',key:'discrete',room:'36-608',type:'☆理论',group:'25数大(3)'},
+  {day:2,p:[3,4],weeks:rng(2,15), name:'离散数学',key:'discrete',room:'36-1JT',type:'★实验',group:'25数大(1)(2)(3)'},
+  {day:3,p:[7,8],weeks:rng(10,15),name:'离散数学',key:'discrete',room:'36-608',type:'☆理论',group:'25数大(2)'},
+  {day:5,p:[7,8],weeks:rng(2,15), name:'离散数学',key:'discrete',room:'36-2JT',type:'★实验',group:'25数大(1)(2)(3)'},
+  // 人机交互
+  {day:3,p:[3,4],weeks:rng(9,16), name:'人机交互软工方法学',key:'hci',room:'35-208',type:'★实验',group:'23软工(1)(2)'},
+  {day:4,p:[1,2],weeks:rng(10,18),name:'人机交互软工方法学',key:'hci',room:'36-601',type:'☆理论',group:'23软工(2)'},
+  {day:4,p:[3,4],weeks:rng(11,18),name:'人机交互软工方法学',key:'hci',room:'36-601',type:'☆理论',group:'23软工(1)'},
+  {day:5,p:[1,2],weeks:rng(16,18),name:'人机交互软工方法学',key:'hci',room:'36-601',type:'☆理论',group:'23软工(2)'},
+  {day:5,p:[3,4],weeks:[10,...rng(16,18)],name:'人机交互软工方法学',key:'hci',room:'36-606',type:'☆理论',group:'23软工(1)'},
+  {day:5,p:[5,6],weeks:rng(9,16), name:'人机交互软工方法学',key:'hci',room:'36-210',type:'★实验',group:'23软工(1)(2)'},
+];
+
+// ─── STATE ────────────────────────────────────────────────────
+let viewWeek = null;
+
+function todayDate(){const d=new Date();d.setHours(0,0,0,0);return d;}
+function nowMin(){const n=new Date();return n.getHours()*60+n.getMinutes();}
+function semWeek(date){
+  const d=new Date(date);d.setHours(0,0,0,0);
+  const s=new Date(SEM_START);s.setHours(0,0,0,0);
+  if(d<s)return null;
+  return Math.floor((d-s)/(7*86400*1000))+1;
+}
+function mondayOf(w){const d=new Date(SEM_START);d.setDate(d.getDate()+(w-1)*7);return d;}
+function curWeek(){const w=semWeek(todayDate());return(!w||w<1)?1:w>25?25:w;}
+function activeWeek(){return viewWeek!==null?viewWeek:curWeek();}
+function shiftWeek(d){viewWeek=activeWeek()+d;if(viewWeek<1)viewWeek=1;if(viewWeek>25)viewWeek=25;render();}
+function goToday(){viewWeek=null;render();scrollToNow();}
+function fmt(d){return`${d.getMonth()+1}/${d.getDate()}`;}
+
+// ─── RENDER ───────────────────────────────────────────────────
+function render(){
+  const w=activeWeek();
+  const mon=mondayOf(w);
+  const td=todayDate();
+  const isCurWeek=(w===semWeek(td));
+  const nm=nowMin();
+
+  document.getElementById('wLabel').textContent=`第${w}周`;
+
+  // Day dots - Mon to Fri only
+  let ddHtml='';
+  for(let i=0;i<5;i++){
+    const d=new Date(mon);d.setDate(d.getDate()+i);d.setHours(0,0,0,0);
+    const isT=d.getTime()===td.getTime();
+    ddHtml+=`<div class="dd ${isT?'is-today':''}" onclick="scrollToDay(${i+1})">
+      <span class="dd-wd">周${WD[i]}</span>
+      <span class="dd-num">${d.getDate()}</span>
+    </div>`;
+  }
+  document.getElementById('dayDots').innerHTML=ddHtml;
+
+  // Build cell map - Mon to Fri only (day 1-5)
+  const map={}; // map[day][period] = entry | 'skip' | null
+  for(let d=1;d<=5;d++){map[d]={};for(let p=1;p<=8;p++)map[d][p]=null;}
+  for(const s of SCH){
+    if(!s.weeks.includes(w))continue;
+    if(s.day>5)continue; // skip weekend
+    map[s.day][s.p[0]]=s;
+    for(let k=1;k<s.p.length;k++)map[s.day][s.p[k]]='skip';
+  }
+
+  // THEAD
+  let th=`<tr><th class="th-corner col-seg"></th><th class="th-corner col-per">节次</th><th class="th-corner col-time">时间</th>`;
+  for(let i=1;i<=5;i++){
+    const d=new Date(mon);d.setDate(d.getDate()+i-1);d.setHours(0,0,0,0);
+    const isT=d.getTime()===td.getTime();
+    th+=`<th class="th-day col-day ${isT?'th-today':''}" id="thday${i}">
+      <div class="th-day-inner">
+        <span class="th-day-name">星期${WD[i-1]}</span>
+        <span class="th-day-date">${fmt(d)}</span>
+      </div>
+    </th>`;
+  }
+  th+='</tr>';
+  document.getElementById('thead').innerHTML=th;
+
+  // TBODY
+  let tb='';
+  for(let pi=0;pi<PERIODS.length;pi++){
+    const{p,s:ps,e:pe}=PERIODS[pi];
+    const seg=p<=4?0:1;
+    const isFirstInSeg=p===SEGS[seg].ps[0];
+    const segLen=SEGS[seg].ps.length;
+
+    tb+=`<tr>`;
+    if(isFirstInSeg) tb+=`<td class="td-seg" rowspan="${segLen}">${SEGS[seg].l}</td>`;
+    tb+=`<td class="td-per">${p}</td>`;
+    tb+=`<td class="td-time">${ps}<br>${pe}</td>`;
+
+    for(let day=1;day<=5;day++){
+      const dDate=new Date(mon);dDate.setDate(dDate.getDate()+day-1);dDate.setHours(0,0,0,0);
+      const isToday=dDate.getTime()===td.getTime();
+      const cell=map[day][p];
+      if(cell==='skip')continue;
+
+      if(cell){
+        const rs=cell.p.length;
+        const endPeriod=PERIODS.find(x=>x.p===cell.p[cell.p.length-1]);
+        const classOngoing=isCurWeek&&isToday&&nm>=hm(ps)&&nm<hm(endPeriod.e);
+        const cls=['td-class',isToday?'td-today':'',classOngoing?'now-highlight now-pulse':''].filter(Boolean).join(' ');
+        tb+=`<td class="${cls}" rowspan="${rs}" id="cell-${day}-${p}" data-day="${day}" data-p="${p}">
+          <div class="card ${cell.key}">
+            <div class="card-name">${cell.name}</div>
+            <div class="card-meta">${cell.room}</div>
+            <div class="card-meta">${cell.group}</div>
+            <div class="card-tag">${cell.type}</div>
+          </div>
+        </td>`;
+      } else {
+        tb+=`<td class="td-class ${isToday?'td-today':''}" id="cell-${day}-${p}" data-day="${day}" data-p="${p}"></td>`;
+      }
+    }
+    tb+='</tr>';
+  }
+  document.getElementById('tbody').innerHTML=tb;
+
+  // Draw now-line on today's column
+  if(isCurWeek){
+    const td2=todayDate();
+    let todayCol=-1;
+    for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(d.getDate()+i);d.setHours(0,0,0,0);if(d.getTime()===td2.getTime()){todayCol=i+1;break;}}
+    if(todayCol>0){
+      for(let pi=0;pi<PERIODS.length;pi++){
+        const{p,s:ps,e:pe}=PERIODS[pi];
+        if(nm>=hm(ps)&&nm<hm(pe)){
+          const targetTd=document.querySelector(`#cell-${todayCol}-${p}`);
+          if(targetTd&&!targetTd.querySelector('.now-line')){
+            const frac=(nm-hm(ps))/(hm(pe)-hm(ps));
+            const line=document.createElement('div');
+            line.className='now-line';
+            line.style.top=(frac*100)+'%';
+            targetTd.appendChild(line);
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
+// ─── SCROLL ───────────────────────────────────────────────────
+function scrollToNow(){
+  const w=activeWeek();const td2=todayDate();const mon=mondayOf(w);
+  let todayCol=-1;
+  for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(d.getDate()+i);d.setHours(0,0,0,0);if(d.getTime()===td2.getTime()){todayCol=i+1;break;}}
+  if(todayCol<0)return;
+
+  const nm=nowMin();
+  let targetP=1;
+  for(const{p,s}of PERIODS)if(nm>=hm(s))targetP=p;
+
+  scrollToDay(todayCol);
+  setTimeout(()=>{
+    const el=document.getElementById(`cell-${todayCol}-${targetP}`);
+    if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+  },150);
+}
+
+function scrollToDay(col){
+  const outer=document.getElementById('gridOuter');
+  const th=document.getElementById(`thday${col}`);
+  if(th){
+    const leftW=102; // approx left columns width
+    outer.scrollLeft=Math.max(0,th.offsetLeft-leftW);
+  }
+}
+
+// ─── IOS TIP ──────────────────────────────────────────────────
+function dismissTip(){
+  document.getElementById('iosTip').classList.add('hidden');
+  try{localStorage.setItem('iosTipDone','1');}catch(e){}
+}
+function checkIosTip(){
+  const installed=window.navigator.standalone===true;
+  let dismissed=false;try{dismissed=!!localStorage.getItem('iosTipDone');}catch(e){}
+  if(installed||dismissed||!/iPad|iPhone|iPod/.test(navigator.userAgent))
+    document.getElementById('iosTip').classList.add('hidden');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+render();
+checkIosTip();
+setTimeout(scrollToNow,300);
+setInterval(()=>render(),60000);
+</script>
+</body>
+</html>
